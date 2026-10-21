@@ -1,12 +1,12 @@
 /* 数学人生 PWA — Service Worker：app-shell 预缓存 + 离线优先 + 受控更新 */
-var CACHE = "lifemath-v1.11.6";
+var CACHE = "lifemath-v1.11.7";
 var PRECACHE = [
     "./index.html",
-    "./style.css?v=1.11.6",
-    "./app.js?v=1.11.6",
-    "./compute.js?v=1.11.6",
-    "./labels.js?v=1.11.6",
-    "./aliases.js?v=1.11.6",
+    "./style.css?v=1.11.7",
+    "./app.js?v=1.11.7",
+    "./compute.js?v=1.11.7",
+    "./labels.js?v=1.11.7",
+    "./aliases.js?v=1.11.7",
     "./manifest.webmanifest",
     "./cards.json",
     "./compute-spec.json",
