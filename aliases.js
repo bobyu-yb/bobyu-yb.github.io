@@ -125,7 +125,7 @@
     // 储蓄/复利/零钱（大白话）
     { say: ["钱放在余额宝还是银行", "钱放哪生利息", "零钱放哪", "零钱理财", "微信零钱通", "余额宝", "银行理财", "定期还是活期", "存定期划算吗", "提前取定期亏吗", "利息怎么算", "单利还是复利", "钱翻倍要几年", "翻倍要多久", "利滚利的可怕", "复利计息", "复利怎么算"], canon: ["复利", "利滚利", "利息", "终值", "compound", "rule72", "翻倍", "储蓄"] },
     { say: ["怎么存钱", "攒钱太难", "工资不够花", "月光", "存不下钱", "每个月剩不下钱", "零钱理财", "攒钱靠意志"], canon: ["储蓄", "攒", "存钱", "目标"] },
-    { say: ["孩子上学要存多少", "教育要花多少钱", "教育金", "养老钱", "养老金", "退休钱"], canon: ["储蓄", "教育金", "养老", "pmt"] },
+    { say: ["孩子上学要存多少", "教育要花多少钱", "教育金", "养老钱", "养老金", "退休钱", "上大学", "孩子上大学", "大学学费", "学费", "留学", "供孩子读书", "孩子读书", "读书要多少钱", "上大学要多少钱", "孩子要上大学"], canon: ["储蓄", "教育金", "养老", "pmt"] },
     // 保险（大白话）
     { say: ["保险坑不坑", "保险是不是骗人的", "卖保险的说的能信吗", "重疾险要不要买", "医疗险有必要吗", "车险必须买吗", "延保值得买吗", "返还型保险好不好", "买保险返钱那种", "保险稳赚", "保险=稳赚", "保险是坑", "保险该不该买", "值不值买保险"], canon: ["保险", "延保", "车险", "医疗险", "重疾险", "理赔", "投保", "保费", "返还型"] },
     // 风险/投资/赌博（大白话）
@@ -252,14 +252,35 @@
   //   - 长口语说法（触发 say≥3 字）且命中精准 canon → 升到 82（强口语短语加成），再叠加精准数加成
   // 注意：说法触发用 qRawN（仅去标点、保留停用词），避免"多少/怎么/是不是"被提前剥掉，
   //       导致更长的口语说法（如"每个月工资到账要还多少"）整条失配。
+  // 2-gram 覆盖率：衡量「说法」与「用户输入」的字面重合程度。
+  // 用于兜住「孩子上学要存多少」vs「孩子上大学要存多少钱」这类只差一两个字的口语变体。
+  function gramCoverage(s, q) {
+    if (s.length < 2) return 0;
+    var n = 0, hit = 0;
+    for (var i = 0; i + 1 < s.length; i++) {
+      n++;
+      if (q.indexOf(s.substr(i, 2)) > -1) hit++;
+    }
+    return n ? hit / n : 0;
+  }
+
   function _scanList(list, qRawN, hay, score, allowStrong) {
     for (var i = 0; i < list.length; i++) {
       var C = list[i];
-      var trig = false, trigSayLen = 0;
+      var trig = false, trigSayLen = 0, fuzzy = false;
       for (var j = 0; j < C.say.length; j++) {
-        if (qRawN.indexOf(C.say[j]) > -1) {
+        var s = C.say[j];
+        if (qRawN.indexOf(s) > -1) {
           trig = true;
-          if (C.say[j].length > trigSayLen) trigSayLen = C.say[j].length;
+          if (s.length > trigSayLen) trigSayLen = s.length;
+          continue;
+        }
+        // 长说法（≥5 字）允许约 20% 字面偏差：换个说法、多一两个虚词也能命中。
+        // 短说法仍走精确匹配，避免通用字造成误命中。
+        if (s.length >= 5 && gramCoverage(s, qRawN) >= 0.8) {
+          trig = true;
+          fuzzy = true;
+          if (s.length > trigSayLen) trigSayLen = s.length;
         }
       }
       if (!trig) continue;
@@ -274,6 +295,7 @@
       // 不可 break：取"全部 canon 命中的最高组合分"，否则首个命中的通用词会覆盖其后精准词。
       var tier = specific > 0 ? 72 : 60;
       if (allowStrong && trigSayLen >= 3 && specific > 0) tier = 82;   // 强口语短语 + 精准规范词
+      if (fuzzy) tier -= 8;                                            // 模糊命中略降权，精确优先
       var bonus = Math.min(specific, 5) * 3;                            // 命中越多精准规范词越相关
       var total = tier + bonus;
       if (score < total) score = total;
