@@ -845,7 +845,19 @@
       location.reload();
     }
     navigator.serviceWorker.addEventListener("controllerchange", doReload);
-    navigator.serviceWorker.register("./sw.js").catch(function () { /* 本地降级环境忽略 */ });
+    // updateViaCache:"none"：强制 SW 脚本不走 HTTP 缓存。GitHub Pages 对 sw.js 返回
+    // Cache-Control: max-age=600，默认策略下新版 sw.js 在 10 分钟内不可见，
+    // 更新检查拿不到变化 → 页面永久停在旧版本（更新死锁）。
+    // 注册后主动 update()，并在页面重新可见时再查一次。
+    navigator.serviceWorker.register("./sw.js", { updateViaCache: "none" })
+      .then(function (reg) {
+        if (!reg) return;
+        reg.update().catch(function () {});
+        document.addEventListener("visibilitychange", function () {
+          if (document.visibilityState === "visible") reg.update().catch(function () {});
+        });
+      })
+      .catch(function () { /* 本地降级环境忽略 */ });
     navigator.serviceWorker.ready.then(function (reg) {
       function announce(waiting) {
         if (document.getElementById("update-toast")) return;
