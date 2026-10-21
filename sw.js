@@ -1,5 +1,5 @@
 /* 数学人生 PWA — Service Worker：app-shell 预缓存 + 离线优先 + 受控更新 */
-var CACHE = "lifemath-v1.11.3";
+var CACHE = "lifemath-v1.11.4";
 var PRECACHE = [
     "./",
     "./index.html",
