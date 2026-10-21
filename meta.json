@@ -1,0 +1,10 @@
+{
+  "version": "1.11.3",
+  "name": "数学人生",
+  "cardCount": 76,
+  "subcommandCount": 38,
+  "modelCount": 9,
+  "sourceSkill": "life-math",
+  "generator": "build.py",
+  "cloudSuggestUrl": "https://bobyu-yb-d3g7bvn2h936e8d6c-1487747957.ap-shanghai.app.tcloudbase.com/agnes-router"
+}

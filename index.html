@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>数学人生</title>
+<meta name="description" content="76 张策展思维卡 + 38 个计算子命令，把数学思维变成日常决策工具。离线可用。">
+<meta name="theme-color" content="#2b3a66">
+<meta name="theme-color" content="#12151f" media="(prefers-color-scheme: dark)">
+<!-- iOS 兼容（Safari 不可靠读取 manifest 的图标/启动屏，需 apple-* 双轨） -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="数学人生">
+<link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="icon" type="image/png" href="./icons/icon-192.png">
+<link rel="stylesheet" href="./style.css">
+</head>
+<body>
+<div id="app">
+  <header class="topbar">
+    <a class="brand" href="#/">📐 数学人生</a>
+    <span id="version-badge" class="version-badge" title="版本"></span>
+    <button id="theme-btn" class="topbar-btn" type="button" title="切换深浅色" aria-label="切换深浅色">🌙</button>
+  </header>
+
+  <!-- iOS 安装引导：仅对未安装的 iOS Safari 访客显示（navigator.standalone 检测） -->
+  <div id="ios-install" class="ios-install" hidden>
+    <div class="ios-install-inner">
+      <strong>安装到主屏幕，离线随时用</strong>
+      <p>点 Safari 底部工具栏的<b>分享按钮</b> <svg class="ios-share-ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="10" width="13" height="13" rx="3" fill="none" stroke="currentColor" stroke-width="2"/><line x1="10.5" y1="18" x2="10.5" y2="4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M6.5 8 L10.5 4 L14.5 8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> ，下滑选择<b>「添加到主屏幕」</b>。</p>
+      <button id="ios-install-close" class="ios-install-close" type="button">知道了</button>
+    </div>
+  </div>
+
+  <main id="view" class="view"><div class="loading">加载中…</div></main>
+
+  <!-- 底部标签栏：拇指可达的主导航（移动端惯例） -->
+  <nav class="tabbar" id="tabbar">
+    <a class="tab" href="#/" data-tab="list"><span class="tab-ico">📇</span>卡片</a>
+    <a class="tab" href="#/calc" data-tab="calc"><span class="tab-ico">🧮</span>计算器</a>
+    <a class="tab" href="#/about" data-tab="about"><span class="tab-ico">ℹ️</span>关于</a>
+  </nav>
+
+  <div id="toast" class="toast" hidden></div>
+
+  <!-- Android 自定义安装条：捕获 beforeinstallprompt，用户产生价值后出现 -->
+  <div id="install-bar" class="install-bar" hidden>
+    <span class="install-text">装到主屏幕，离线随时用</span>
+    <button id="install-go" class="install-go" type="button">安装</button>
+    <button id="install-close" class="install-close" type="button" aria-label="关闭安装提示">✕</button>
+  </div>
+</div>
+<script src="./compute.js"></script>
+<script src="./labels.js"></script>
+<script src="./aliases.js"></script>
+<script src="./app.js"></script>
+</body>
+</html>
