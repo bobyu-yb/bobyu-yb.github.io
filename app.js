@@ -882,12 +882,27 @@
   window.addEventListener("resize", syncTopbarHeight);
   setupInstall();
   loadData().then(function () {
+    // 加载成功即清除自愈标记，保证下一次版本切换仍能自愈
+    try { sessionStorage.removeItem("lm-autoheal"); } catch (e) {}
     route();
     setupIOSInstall();
     setupSW();
     window.addEventListener("hashchange", route);
   }).catch(function (err) {
-    view.innerHTML = '<div class="error-box">数据加载失败：' + esc(err.message) +
-      "<br>若你是直接打开的 index.html（file://），请用任意静态服务器托管本目录（如 <code>python -m http.server</code>）。</div>";
+    // Service Worker 版本切换瞬间（skipWaiting 立即换版 + 旧缓存清理）常出现
+    // 「旧缓存已删 / 新缓存未就绪」导致数据请求失败：表现为只有顶栏底栏、
+    // 列表与搜索框都不渲染，用户以为「搜索框输入没反应」。
+    // 此处自动重载一次自愈；用 sessionStorage 守卫，避免真实网络故障时无限刷新。
+    var tried = false;
+    try { tried = !!sessionStorage.getItem("lm-autoheal"); } catch (e) {}
+    if (!tried) {
+      try { sessionStorage.setItem("lm-autoheal", "1"); } catch (e) {}
+      location.reload();
+      return;
+    }
+    try { sessionStorage.removeItem("lm-autoheal"); } catch (e) {}
+    var box = document.getElementById("results") || view;
+    box.innerHTML = '<div class="error-box">数据加载失败：' + esc(err.message) +
+      "<br>请检查网络连接后刷新页面。" + "</div>";
   });
 })();
