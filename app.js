@@ -26,8 +26,11 @@
       .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
   }
   // 构建期注入的版本号（build.py 把 __ASSET_V__ 替换为实际版本）。
-  // dev / 测试环境未替换时保持 "1.11.8"，此时不加版本参数，兼容本地与桩。
-  var ASSET_V = "1.11.8";
+  // dev / 测试环境未替换时保持 "1.11.9"，此时不加版本参数，兼容本地与桩。
+  var ASSET_V = "1.11.9";
+  // 诊断开关：仅 ?debug=1 时收集输入/渲染计数，用于定位「能输入但结果不动」
+  var DBG = /[?&]debug=1/.test(location.search);
+  var DIAG = DBG ? { input: 0, paint: 0, lastVal: "", err: "" } : null;
   function fetchJSON(url) {
     // 数据文件同样带版本参数：否则「新代码 + 旧 meta.json 缓存」会显示旧版本号，
     // 用户会以为根本没更新（v1.11.6 → v1.11.7 真实踩到过）。
@@ -261,6 +264,7 @@
     }
 
     function paint() {
+      if (DIAG) DIAG.paint++;
       var raw = q.value.trim();
       var box = document.getElementById("results");
       // 默认不预选：未选主题且未选收藏 => 空状态引导（必须先选分类）
@@ -322,7 +326,24 @@
       return '<button type="button" class="filter-chip" data-key="' + esc(key) + '">' + esc(label) + "</button>";
     }
 
-    q.addEventListener("input", paint);
+    // 某些定制内核 / 内置浏览器（微信 X5、部分华为内核）对 <input type="search">
+    // 只派发 change 或 compositionend，不派发 input，导致「字能输入、结果不动」。
+    // 四种事件统一走同一个去重入口（值未变则跳过），兼顾中文输入法组词结束。
+    var lastListKey = null;
+    function onListInput() {
+      var v = q.value;
+      if (DIAG) {
+        DIAG.input++;
+        DIAG.lastVal = v;
+      }
+      if (v === lastListKey) return;
+      lastListKey = v;
+      paint();
+    }
+    q.addEventListener("input", onListInput);
+    q.addEventListener("keyup", onListInput);
+    q.addEventListener("change", onListInput);
+    q.addEventListener("compositionend", onListInput);
     document.getElementById("filter-row").addEventListener("click", function (ev) {
       var btn = ev.target.closest ? ev.target.closest(".filter-chip") : null;
       if (!btn) return;
@@ -502,7 +523,22 @@
         box.innerHTML = cmds.map(function (n) { return cmdItemHtml(n, false); }).join("");
         if (kw) cloudSuggest(kw, "calc", box);
       }
-      cq.addEventListener("input", paintCmds);
+      // 同上：计算器搜索框也需要多事件兜底
+      var lastCalcKey = null;
+      function onCalcInput() {
+        var v = cq.value;
+        if (DIAG) {
+          DIAG.input++;
+          DIAG.lastVal = v;
+        }
+        if (v === lastCalcKey) return;
+        lastCalcKey = v;
+        paintCmds();
+      }
+      cq.addEventListener("input", onCalcInput);
+      cq.addEventListener("keyup", onCalcInput);
+      cq.addEventListener("change", onCalcInput);
+      cq.addEventListener("compositionend", onCalcInput);
       sceneRow.addEventListener("click", function (ev) {
         var btn = ev.target.closest ? ev.target.closest(".filter-chip") : null;
         if (!btn) return;
@@ -924,18 +960,19 @@
       dbg.textContent += "\n[ERR] " + (e.message || e.error) + " @ " +
         String(e.filename || "").split("/").pop() + ":" + e.lineno;
     });
-    setTimeout(function () {
+    setInterval(function () {
       dbg.textContent = [
         "ver=" + (state.meta && state.meta.version),
         "LMAliases=" + typeof window.LMAliases,
-        "LMLabels=" + typeof window.LMLabels,
-        "LMCompute=" + typeof window.LMCompute,
         "cards=" + (state.cards ? state.cards.length : "?"),
         "sw=" + ("serviceWorker" in navigator),
         "online=" + navigator.onLine,
+        "input=" + (DIAG ? DIAG.input : "-"),
+        "paint=" + (DIAG ? DIAG.paint : "-"),
+        "lastVal=" + JSON.stringify(DIAG ? DIAG.lastVal : null),
         "ua=" + String(navigator.userAgent || "").slice(0, 80)
       ].join("\n");
-    }, 2000);
+    }, 800);
   }
 
   loadData().then(function () {
