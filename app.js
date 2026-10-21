@@ -26,8 +26,8 @@
       .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
   }
   // 构建期注入的版本号（build.py 把 __ASSET_V__ 替换为实际版本）。
-  // dev / 测试环境未替换时保持 "1.11.10"，此时不加版本参数，兼容本地与桩。
-  var ASSET_V = "1.11.10";
+  // dev / 测试环境未替换时保持 "1.11.11"，此时不加版本参数，兼容本地与桩。
+  var ASSET_V = "1.11.11";
   // 诊断开关：仅 ?debug=1 时收集输入/渲染计数，用于定位「能输入但结果不动」
   var DBG = /[?&]debug=1/.test(location.search);
   var DIAG = DBG ? { input: 0, paint: 0, lastVal: "", err: "" } : null;
