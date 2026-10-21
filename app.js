@@ -100,20 +100,39 @@
     var myQ = q;
     _cloudTimer = setTimeout(function () { doCloudSuggest(myQ, page, box); }, 350); // 输入防抖
   }
+  function showAiLoading(box) {
+    if (!box || box.querySelector(".ai-loading")) return;
+    box.insertAdjacentHTML("beforeend",
+      '<div class="ai-loading"><span class="ai-ico">🤖</span><span>AI 正在补充建议…</span></div>');
+  }
+  function hideAiLoading(box) {
+    if (!box) return;
+    var el = box.querySelector(".ai-loading");
+    if (el) el.parentNode.removeChild(el);
+  }
   function doCloudSuggest(q, page, box) {
     if (!box) return;
     var myId = ++_cloudReqId;
     var ctrl = new AbortController();
-    var timer = setTimeout(function () { ctrl.abort(); }, 8000);
+    // 云函数冷启动可能 10s+，先给即时反馈，避免用户以为「点了没反应」。
+    showAiLoading(box);
+    // 前端超时必须大于云函数内部 LLM 超时（AGNES_TIMEOUT=12s），否则冷启动
+    // （实测约 11.5s）时请求会被前端提前 abort，AI 兜底永远不显示。
+    var timer = setTimeout(function () { ctrl.abort(); }, 16000);
     fetch(state.meta.cloudSuggestUrl + "?q=" + encodeURIComponent(q.slice(0, 200)), { signal: ctrl.signal })
       .then(function (r) { return r.json(); })
       .then(function (j) {
         clearTimeout(timer);
-        if (myId !== _cloudReqId) return;        // 已有更新的搜索，丢弃本次
+        if (myId !== _cloudReqId) return;        // 已有更新的搜索，丢弃本次（loading 交给新请求）
+        hideAiLoading(box);
         if (!j || !j.ok) return;                 // 云端不可用 / 无结果 -> 保持离线结果
         renderCloudAddon(j, page, box);
       })
-      .catch(function () { clearTimeout(timer); }); // 离线 / 超时 / 网络错误 -> 静默降级
+      .catch(function () {
+        clearTimeout(timer);
+        // 离线 / 超时 / 网络错误 -> 静默降级；仅当本次仍是最新请求时才收起提示
+        if (myId === _cloudReqId) hideAiLoading(box);
+      });
   }
   function renderCloudAddon(j, page, box) {
     var old = box.querySelector(".ai-addon");
