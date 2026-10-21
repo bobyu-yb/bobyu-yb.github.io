@@ -100,6 +100,18 @@
     var myQ = q;
     _cloudTimer = setTimeout(function () { doCloudSuggest(myQ, page, box); }, 350); // 输入防抖
   }
+  // 模块加载兜底：aliases.js 若未能加载（旧内核解析失败 / 被拦截 / 缓存异常），
+  // 直接用朴素子串匹配，保证「输入一定有反应」，而不是让整条渲染链抛错后静默失败。
+  function matchHaySafe(raw, hay) {
+    var q = String(raw == null ? "" : raw).replace(/^\s+|\s+$/g, "");
+    // 空关键词：全部命中满分。必须与原 `kw ? matchHay(...) : {score:100}` 语义一致，
+    // 否则计算器列表（无关键词时靠 score>0 过滤）会被全部滤掉。
+    if (!q) return { hit: true, score: 100 };
+    var A = window.LMAliases;
+    if (A && typeof A.matchHay === "function") return A.matchHay(raw, hay);
+    var h = String(hay == null ? "" : hay).toLowerCase();
+    return h.indexOf(q.toLowerCase()) >= 0 ? { hit: true, score: 50 } : { hit: false, score: 0 };
+  }
   function showAiLoading(box) {
     if (!box || box.querySelector(".ai-loading")) return;
     box.insertAdjacentHTML("beforeend",
@@ -254,7 +266,7 @@
         }
         // 全局搜索：同义词/概念桥匹配 + 打分排序，结果带「所属主题」标签
         var g = state.cards.map(function (c) {
-          var m = window.LMAliases.matchHay(raw, state.searchText[c.slug]);
+          var m = matchHaySafe(raw, state.searchText[c.slug]);
           return { c: c, score: m.score };
         }).filter(function (x) { return x.score > 0; });
         syncChips();
@@ -436,7 +448,7 @@
       }
       function scoredCmds(names, kw) {
         return names.map(function (n) {
-          var m = kw ? window.LMAliases.matchHay(kw, hayOf(n)) : { hit: true, score: 100 };
+          var m = matchHaySafe(kw, hayOf(n));
           return { n: n, score: m.score };
         }).filter(function (x) { return x.score > 0; })
           .sort(function (a, b) { return b.score - a.score; })
@@ -893,6 +905,33 @@
   syncTopbarHeight();
   window.addEventListener("resize", syncTopbarHeight);
   setupInstall();
+
+  // ?debug=1 环境自检：仅当地址带 debug=1 时在页面底部显示关键状态与脚本错误，
+  // 用于在异常内核 / 内置浏览器上定位「某模块未加载」类问题（平时完全不可见）。
+  if (/[?&]debug=1/.test(location.search)) {
+    var dbg = document.createElement("div");
+    dbg.id = "lm-debug";
+    dbg.style.cssText = "position:fixed;left:0;right:0;bottom:0;z-index:99999;max-height:44vh;overflow:auto;background:#111;color:#0f0;font:11px/1.6 monospace;padding:8px;white-space:pre-wrap;word-break:break-all";
+    dbg.textContent = "自检加载中…";
+    document.body.appendChild(dbg);
+    window.addEventListener("error", function (e) {
+      dbg.textContent += "\n[ERR] " + (e.message || e.error) + " @ " +
+        String(e.filename || "").split("/").pop() + ":" + e.lineno;
+    });
+    setTimeout(function () {
+      dbg.textContent = [
+        "ver=" + (state.meta && state.meta.version),
+        "LMAliases=" + typeof window.LMAliases,
+        "LMLabels=" + typeof window.LMLabels,
+        "LMCompute=" + typeof window.LMCompute,
+        "cards=" + (state.cards ? state.cards.length : "?"),
+        "sw=" + ("serviceWorker" in navigator),
+        "online=" + navigator.onLine,
+        "ua=" + String(navigator.userAgent || "").slice(0, 80)
+      ].join("\n");
+    }, 2000);
+  }
+
   loadData().then(function () {
     // 加载成功即清除自愈标记，保证下一次版本切换仍能自愈
     try { sessionStorage.removeItem("lm-autoheal"); } catch (e) {}
