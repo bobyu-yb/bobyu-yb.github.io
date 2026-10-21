@@ -1,13 +1,12 @@
 /* 数学人生 PWA — Service Worker：app-shell 预缓存 + 离线优先 + 受控更新 */
-var CACHE = "lifemath-v1.11.5";
+var CACHE = "lifemath-v1.11.6";
 var PRECACHE = [
-    "./",
     "./index.html",
-    "./style.css",
-    "./app.js",
-    "./compute.js",
-    "./labels.js",
-    "./aliases.js",
+    "./style.css?v=1.11.6",
+    "./app.js?v=1.11.6",
+    "./compute.js?v=1.11.6",
+    "./labels.js?v=1.11.6",
+    "./aliases.js?v=1.11.6",
     "./manifest.webmanifest",
     "./cards.json",
     "./compute-spec.json",
@@ -52,6 +51,27 @@ self.addEventListener("fetch", function (event) {
   if (req.method !== "GET") return;
   var url = new URL(req.url);
   if (url.origin !== location.origin) return;
+
+  // 导航请求（HTML）走「网络优先」：确保页面骨架总能拿到最新版本。
+  // 若沿用 cache-first，旧 SW 会把 HTML 永久钉在旧版，即使新 SW 已发布也进不来。
+  if (req.mode === "navigate") {
+    event.respondWith(
+      fetch(req).then(function (resp) {
+        if (resp && resp.ok) {
+          var copy = resp.clone();
+          caches.open(CACHE).then(function (cache) { cache.put(req, copy); });
+        }
+        return resp;
+      }).catch(function () {
+        // 离线：回退到缓存的 app shell
+        return caches.match(req).then(function (hit) {
+          return hit || caches.match("./index.html");
+        });
+      })
+    );
+    return;
+  }
+
   event.respondWith(
     caches.match(req).then(function (hit) {
       if (hit) return hit;
@@ -62,8 +82,6 @@ self.addEventListener("fetch", function (event) {
         }
         return resp;
       }).catch(function () {
-        // 导航请求兜底：离线且未缓存时回退到 app shell
-        if (req.mode === "navigate") return caches.match("./index.html");
         return new Response("", { status: 504, statusText: "offline" });
       });
     })
