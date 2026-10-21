@@ -26,8 +26,8 @@
       .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
   }
   // 构建期注入的版本号（build.py 把 __ASSET_V__ 替换为实际版本）。
-  // dev / 测试环境未替换时保持 "1.11.9"，此时不加版本参数，兼容本地与桩。
-  var ASSET_V = "1.11.9";
+  // dev / 测试环境未替换时保持 "1.11.10"，此时不加版本参数，兼容本地与桩。
+  var ASSET_V = "1.11.10";
   // 诊断开关：仅 ?debug=1 时收集输入/渲染计数，用于定位「能输入但结果不动」
   var DBG = /[?&]debug=1/.test(location.search);
   var DIAG = DBG ? { input: 0, paint: 0, lastVal: "", err: "" } : null;
@@ -282,6 +282,9 @@
         syncChips();
         if (!g.length) {
           box.innerHTML = '<div class="empty"><div class="empty-main">没有匹配的卡片</div><div class="empty-sub">换个说法，或选主题缩小范围</div></div>';
+          // 本地词典搜不到，恰恰是最需要 AI 兜底的场景（此前直接 return，等于关掉了兜底）。
+          // 在线时由云端按语义推荐相关卡片，离线时静默降级、保持本提示不变。
+          cloudSuggest(raw, "list", box);
           return;
         }
         g.sort(function (a, b) { return b.score - a.score; });
@@ -304,6 +307,8 @@
         box.innerHTML = '<div class="empty"><div class="empty-main">' +
           (favsOnly && !favs.length ? "还没有收藏。打开任意卡片，点「★ 收藏」即可加入。" :
            "没有匹配的卡片") + '</div><div class="empty-sub">换个关键词或筛选试试</div></div>';
+        // 主题内没搜到（且有关键词）时同样让 AI 兜底；纯空收藏不触发
+        if (raw) cloudSuggest(raw, "list", box);
         return;
       }
       items.sort(function (a, b) { return b.score - a.score; });
