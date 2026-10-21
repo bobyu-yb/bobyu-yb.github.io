@@ -236,6 +236,13 @@ a:active { opacity: .7; }
   border-radius: 12px; padding: 10px 12px; margin-bottom: 10px;
 }
 .ai-ico { flex: 0 0 auto; font-size: 16px; line-height: 1.4; }
+/* 云端语义兜底等待中：冷启动可达 10s+，需要即时反馈 */
+.ai-loading {
+  display: flex; gap: 8px; align-items: center; margin-top: 14px; padding-top: 12px;
+  border-top: 1px dashed var(--line); font-size: 13px; color: var(--ink); opacity: .65;
+}
+@keyframes ai-pulse { 0%, 100% { opacity: .45; } 50% { opacity: 1; } }
+.ai-loading .ai-ico { animation: ai-pulse 1.2s ease-in-out infinite; }
 .ai-head {
   font-size: 12px; font-weight: 700; color: var(--brand); letter-spacing: .03em;
   margin: 4px 0 8px; display: flex; align-items: center; gap: 8px;
