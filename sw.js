@@ -1,16 +1,16 @@
 /* 数学人生 PWA — Service Worker：app-shell 预缓存 + 离线优先 + 受控更新 */
-var CACHE = "lifemath-v1.11.9";
+var CACHE = "lifemath-v1.11.10";
 var PRECACHE = [
     "./index.html",
-    "./style.css?v=1.11.9",
-    "./app.js?v=1.11.9",
-    "./compute.js?v=1.11.9",
-    "./labels.js?v=1.11.9",
-    "./aliases.js?v=1.11.9",
+    "./style.css?v=1.11.10",
+    "./app.js?v=1.11.10",
+    "./compute.js?v=1.11.10",
+    "./labels.js?v=1.11.10",
+    "./aliases.js?v=1.11.10",
     "./manifest.webmanifest",
-    "./cards.json?v=1.11.9",
-    "./compute-spec.json?v=1.11.9",
-    "./meta.json?v=1.11.9",
+    "./cards.json?v=1.11.10",
+    "./compute-spec.json?v=1.11.10",
+    "./meta.json?v=1.11.10",
     "./icons/icon-192.png",
     "./icons/icon-512.png",
     "./icons/icon-maskable-512.png",
