@@ -25,8 +25,14 @@
       .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
       .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
   }
+  // 构建期注入的版本号（build.py 把 __ASSET_V__ 替换为实际版本）。
+  // dev / 测试环境未替换时保持 "1.11.8"，此时不加版本参数，兼容本地与桩。
+  var ASSET_V = "1.11.8";
   function fetchJSON(url) {
-    return fetch(url).then(function (r) {
+    // 数据文件同样带版本参数：否则「新代码 + 旧 meta.json 缓存」会显示旧版本号，
+    // 用户会以为根本没更新（v1.11.6 → v1.11.7 真实踩到过）。
+    var q = (ASSET_V && ASSET_V.charAt(0) !== "_") ? "?v=" + ASSET_V : "";
+    return fetch(url + q).then(function (r) {
       if (!r.ok) throw new Error("加载失败: " + url + " (" + r.status + ")");
       return r.json();
     });
