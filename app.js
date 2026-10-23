@@ -26,8 +26,8 @@
       .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
   }
   // 构建期注入的版本号（build.py 把 __ASSET_V__ 替换为实际版本）。
-  // dev / 测试环境未替换时保持 "1.11.12"，此时不加版本参数，兼容本地与桩。
-  var ASSET_V = "1.11.12";
+  // dev / 测试环境未替换时保持 "1.11.13"，此时不加版本参数，兼容本地与桩。
+  var ASSET_V = "1.11.13";
   // 诊断开关：仅 ?debug=1 时收集输入/渲染计数，用于定位「能输入但结果不动」
   var DBG = /[?&]debug=1/.test(location.search);
   var DIAG = DBG ? { input: 0, paint: 0, lastVal: "", err: "" } : null;
@@ -983,38 +983,102 @@
   loadData().then(function () {
     // 加载成功即清除自愈标记，保证下一次版本切换仍能自愈
     try { sessionStorage.removeItem("lm-autoheal"); } catch (e) {}
+
+    // ── 启动/恢复回首页 ────────────────────────────────────────────────
+    // 为什么不能只靠 visibilitychange + 内存计时器：
+    // 页面一旦被重建（冷启动、bfcache 恢复、被杀后重开），内存里的 bgAt 归零，
+    // 兜底就完全不执行；而旧 URL 仍指向上次的 #/card/...，于是又看到老内容。
+    // 为什么不能只靠 manifest 的 launch_handler：
+    // 它只对「已安装 PWA 启动」生效 —— 浏览器标签页恢复不适用、iOS Safari
+    // 根本不支持、且已安装 PWA 的 manifest 是缓存的（Chrome 常隔天才刷新）。
+    // 因此改为：把「上次活跃时刻」持久化到 localStorage，并在所有可能的
+    // 回到前台 / 重新启动时机检查，任一时机超时即归位首页。
+    var HOME_AFTER_MS = 5 * 60 * 1000;
+    var LAST_ACTIVE_KEY = "lm-last-active";
+
+    function writeLastActive() {
+      try { localStorage.setItem(LAST_ACTIVE_KEY, String(Date.now())); } catch (e) {}
+    }
+    // 老用户升级判定：1.11.13 之前的版本从不写 lm-last-active，但会留下主题、
+    // 收藏、安装提示等痕迹。若这些痕迹存在而活跃时间戳缺失，说明是从旧版升级来的
+    // 回访用户 —— 应视为「离开很久」并归位首页，否则升级后第一次打开仍看到旧内容，
+    // 会被误判为「没修好」。
+    function hasPriorTrace() {
+      try {
+        if (localStorage.getItem(FAV_KEY)) return true;
+        if (localStorage.getItem("lm-theme")) return true;
+        if (localStorage.getItem("lm-install-dismissed")) return true;
+        if (localStorage.getItem("lm-ios-install-dismissed")) return true;
+      } catch (e) {}
+      return false;
+    }
+    // 返回「距上次活跃的毫秒数」；返回 null = 无法判定 → 不重置。
+    // 注意不能一律返回 Infinity：那样首次访问任何卡片链接都会被判为「离开很久」
+    // 而强制送回首页，全新访客点开分享链接会打不到卡片。
+    function readAwayMs() {
+      try {
+        var v = localStorage.getItem(LAST_ACTIVE_KEY);
+        if (!v) return hasPriorTrace() ? Infinity : null;
+        var n = Number(v);
+        return isFinite(n) ? (Date.now() - n) : null;
+      } catch (e) { return null; }
+    }
+    function isAtHome() {
+      return !location.hash || location.hash === "#/" || location.hash === "#";
+    }
+    // 必须连 listState.query 一起清：renderList() 里有 q.value = listState.query，
+    // 只清输入框不清状态，搜索词会在重绘时被原样填回（v1.11.12 的实际漏洞）。
+    function normalizeToHome() {
+      listState.theme = "";
+      listState.favOnly = false;
+      listState.query = "";
+      listState.scroll = 0;
+      var atHome = isAtHome();
+      if (!atHome) location.hash = "#/";      // 触发 hashchange -> route() 重建首页
+      return atHome;                          // 已是首页则需手动重绘
+    }
+    function homeIsDirty() {
+      var qEl = document.getElementById("q");
+      return !isAtHome() || listState.theme !== "" || listState.favOnly ||
+        listState.query !== "" || (qEl && qEl.value !== "");
+    }
+    function maybeHomeOnResume() {
+      var away = readAwayMs();
+      if (away === null) return false;                 // 无历史记录：无法判定，不重置
+      if (away < HOME_AFTER_MS) return false;          // 短切换：保留阅读进度
+      if (!homeIsDirty()) return false;                // 已是干净首页，不重绘免闪动
+      var wasHome = normalizeToHome();
+      if (wasHome) route();                            // hash 未变，手动重绘
+      return true;
+    }
+
+    // 冷启动兜底：此时尚未渲染，先归一 hash，随后的 route() 直接渲染首页，
+    // 不会先闪一下旧卡片再跳走。
+    var coldAway = readAwayMs();
+    if (coldAway !== null && coldAway >= HOME_AFTER_MS && homeIsDirty()) normalizeToHome();
+
     route();
     setupIOSInstall();
     setupSW();
     window.addEventListener("hashchange", route);
 
-    // 点主屏图标切回时：若在后台停留超过阈值（10 分钟）则回首页并清空搜索；
-    // 短时间切换（切去回条消息再回来）保留原位置，避免丢阅读进度。
-    // manifest 的 launch_handler 已在支持它的浏览器处理启动行为，这里是兜底。
-    var HOME_AFTER_MS = 10 * 60 * 1000;
-    var bgAt = 0;
+    // 心跳：只在页面可见时刷新「最后活跃」。若后台也刷新，被节流的定时器会把
+    // 时间戳一直顶新，导致永远判定为「刚离开」而永不回首页。
+    writeLastActive();
+    setInterval(function () {
+      if (document.visibilityState === "visible") writeLastActive();
+    }, 30000);
+
     document.addEventListener("visibilitychange", function () {
-      if (document.visibilityState === "hidden") {
-        bgAt = Date.now();
-        return;
-      }
-      if (!bgAt) return;                      // 未记录过进入后台，忽略
-      var away = Date.now() - bgAt;
-      bgAt = 0;
-      if (away < HOME_AFTER_MS) return;       // 短时间切换：保留现场不重绘
-      var qEl = document.getElementById("q");
-      var atHome = !location.hash || location.hash === "#/" || location.hash === "#";
-      var dirty = !atHome || listState.theme !== "" || listState.favOnly ||
-        (qEl && qEl.value !== "");
-      if (!dirty) return;                     // 已是干净首页，不重绘以免闪动
-      listState.theme = "";
-      listState.favOnly = false;
-      listState.scroll = 0;
-      if (!atHome) {
-        location.hash = "#/";                 // 触发 hashchange -> route() 重建首页
-      } else {
-        route();                              // hash 已是首页，手动重绘以清空搜索框
-      }
+      if (document.visibilityState === "hidden") { writeLastActive(); return; }
+      maybeHomeOnResume();
+    });
+    window.addEventListener("pagehide", writeLastActive);
+    window.addEventListener("beforeunload", writeLastActive);
+    // bfcache / 页面缓存恢复（iOS Safari 与移动端常见）：persisted 为真表示页面
+    // 是「被恢复」而非新加载，此时未必有 hidden→visible 转换可依赖。
+    window.addEventListener("pageshow", function (e) {
+      if (e.persisted) maybeHomeOnResume();
     });
   }).catch(function (err) {
     // Service Worker 版本切换瞬间（skipWaiting 立即换版 + 旧缓存清理）常出现
