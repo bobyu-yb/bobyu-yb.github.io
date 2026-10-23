@@ -3,9 +3,12 @@
   "short_name": "数学人生",
   "description": "76 张策展思维卡 + 38 个计算子命令，把数学思维变成日常决策工具。离线可用。",
   "id": "/",
-  "start_url": "./index.html",
+  "start_url": "./index.html#/",
   "scope": "./",
   "display": "standalone",
+  "launch_handler": {
+    "client_mode": "navigate-existing"
+  },
   "orientation": "portrait",
   "background_color": "#f6f5f1",
   "theme_color": "#2b3a66",

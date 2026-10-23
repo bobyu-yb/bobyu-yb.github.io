@@ -26,8 +26,8 @@
       .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
   }
   // 构建期注入的版本号（build.py 把 __ASSET_V__ 替换为实际版本）。
-  // dev / 测试环境未替换时保持 "1.11.11"，此时不加版本参数，兼容本地与桩。
-  var ASSET_V = "1.11.11";
+  // dev / 测试环境未替换时保持 "1.11.12"，此时不加版本参数，兼容本地与桩。
+  var ASSET_V = "1.11.12";
   // 诊断开关：仅 ?debug=1 时收集输入/渲染计数，用于定位「能输入但结果不动」
   var DBG = /[?&]debug=1/.test(location.search);
   var DIAG = DBG ? { input: 0, paint: 0, lastVal: "", err: "" } : null;
@@ -987,6 +987,35 @@
     setupIOSInstall();
     setupSW();
     window.addEventListener("hashchange", route);
+
+    // 点主屏图标切回时：若在后台停留超过阈值（10 分钟）则回首页并清空搜索；
+    // 短时间切换（切去回条消息再回来）保留原位置，避免丢阅读进度。
+    // manifest 的 launch_handler 已在支持它的浏览器处理启动行为，这里是兜底。
+    var HOME_AFTER_MS = 10 * 60 * 1000;
+    var bgAt = 0;
+    document.addEventListener("visibilitychange", function () {
+      if (document.visibilityState === "hidden") {
+        bgAt = Date.now();
+        return;
+      }
+      if (!bgAt) return;                      // 未记录过进入后台，忽略
+      var away = Date.now() - bgAt;
+      bgAt = 0;
+      if (away < HOME_AFTER_MS) return;       // 短时间切换：保留现场不重绘
+      var qEl = document.getElementById("q");
+      var atHome = !location.hash || location.hash === "#/" || location.hash === "#";
+      var dirty = !atHome || listState.theme !== "" || listState.favOnly ||
+        (qEl && qEl.value !== "");
+      if (!dirty) return;                     // 已是干净首页，不重绘以免闪动
+      listState.theme = "";
+      listState.favOnly = false;
+      listState.scroll = 0;
+      if (!atHome) {
+        location.hash = "#/";                 // 触发 hashchange -> route() 重建首页
+      } else {
+        route();                              // hash 已是首页，手动重绘以清空搜索框
+      }
+    });
   }).catch(function (err) {
     // Service Worker 版本切换瞬间（skipWaiting 立即换版 + 旧缓存清理）常出现
     // 「旧缓存已删 / 新缓存未就绪」导致数据请求失败：表现为只有顶栏底栏、
